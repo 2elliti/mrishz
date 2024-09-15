@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <string.h>
 #define BUFFER_SIZE 1024
 #define TOKEN_BUFFER_SIZE 1024
 
@@ -19,10 +20,16 @@
 
 
 
-int execute_tokens(char **tokens){
 
+
+int execute_tokens(char **tokens,int flag){
+	if(flag == 1){
+		return 1;
+	}
+	if (tokens[0] == NULL) {  // No command entered
+		return 1;
+	}
 	int return_value = fork();
-
 	if(return_value<0){
 		fprintf(stderr,"Error: can't fork\n");
 		exit(1);
@@ -36,7 +43,12 @@ int execute_tokens(char **tokens){
 }
 
 
+void check_exit(char *buffer){
+	if(strcmp(buffer,"exit")==0){
+		exit(1);
+	}
 
+}
 
 
 
@@ -44,11 +56,11 @@ int execute_tokens(char **tokens){
 
 
 char *lex_it(char *buffer, int *curr){
-	if((buffer[*curr]>='A' && buffer[*curr]<='Z') || (buffer[*curr]>='a' && buffer[*curr]<='z')){
+	if((buffer[*curr]>='A' && buffer[*curr]<='Z') || (buffer[*curr]>='a' && buffer[*curr]<='z') || buffer[*curr]=='.'){
 //		printf("i am at this character: %c\n",buffer[*curr]);
 		char *token = malloc(sizeof(char)*80);
 		int token_index = 0;
-		while((buffer[*curr]>='A' && buffer[*curr]<='Z') || (buffer[*curr]>='a' && buffer[*curr]<='z')){
+		while((buffer[*curr]>='A' && buffer[*curr]<='Z') || (buffer[*curr]>='a' && buffer[*curr]<='z') || buffer[*curr]=='.'){
 			token[token_index] = buffer[*curr];
 			token_index++;
 			(*curr)++;
@@ -58,7 +70,9 @@ char *lex_it(char *buffer, int *curr){
 
 
 
-	}else{
+	}
+
+	else{
 		fprintf(stderr,"Error: Cant lex non alphabetical character\n");
 		exit(1);
 	}
@@ -75,7 +89,7 @@ char **lexing_tokens(char *buffer){
 	int current_buffer_index = 0;
 
 	while(buffer[current_buffer_index]!='\0'){
-		if((buffer[current_buffer_index]>='A' && buffer[current_buffer_index]<='Z') || (buffer[current_buffer_index]>='a' && buffer[current_buffer_index]<='z')){
+		if((buffer[current_buffer_index]>='A' && buffer[current_buffer_index]<='Z') || (buffer[current_buffer_index]>='a' && buffer[current_buffer_index]<='z') || buffer[current_buffer_index] == '.'){
 			char *token;
 			token = lex_it(buffer,&current_buffer_index);
 			tokens[current_token_index] = token;
@@ -91,6 +105,26 @@ char **lexing_tokens(char *buffer){
 	return tokens;
 
 }
+int launch_builtins(char **tokens){
+	int flag = 0;
+	if (tokens[0] == NULL) {
+		return 0;  // No command to execute
+	}
+	if(strcmp(tokens[0],"exit") == 0){
+		flag = 1;
+		exit(1);
+	}
+	else if(strcmp(tokens[0],"cd") == 0){
+//		printf("%s\n",tokens[1]);
+		if(chdir(tokens[1])!=0){
+			fprintf(stderr,"Error while changing directory\n");
+		}
+		flag = 1;
+	}
+
+	return flag;
+}
+
 
 void mrishz_loop(){
 
@@ -101,7 +135,8 @@ void mrishz_loop(){
 	
 		char *buffer = malloc(sizeof(char)*BUFFER_SIZE);
 		int new_buffer_size  = BUFFER_SIZE;
-		printf("\x1b[91mx386>> ");
+		char *pathbuffer = malloc(sizeof(char)*80);
+		printf("\x1b[30;42mx386:%s>> ",getcwd(pathbuffer,80));
 		int current_index = 0;
 		int ch;
 		while((ch=getc(stdin))!='\n' && ch!=EOF){
@@ -122,16 +157,24 @@ void mrishz_loop(){
 		buffer[current_index] = '\0';
 //		printf("%s\n",buffer);
 		
+		
 		char **tokens;
 
 		tokens = lexing_tokens(buffer);
+//		builtcmd(tokens);
 //		printf("\n---------------------\n");
 //		for(int i=0;tokens[i]!=NULL;i++){
 //			printf("%s\n",tokens[i]);
 //		}
 //		printf("\n---------------------\n");
+		//
+		int flag;
+		flag = launch_builtins(tokens);
 
-		status = execute_tokens(tokens);
+		status = execute_tokens(tokens,flag);
+		free(buffer);  // Free allocated buffer memory
+		free(tokens);
+		free(pathbuffer);
 
 
 
